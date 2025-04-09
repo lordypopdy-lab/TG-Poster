@@ -1,33 +1,6 @@
-# from telethon import TelegramClient, events
-
-# api_id = 14458814
-# api_hash = "b1e1a2ffd6000df2ea7b40517523bbbb"
-
-# source_channel = "xmcryptonews"
-# destination_channel = "@BitclubChatGroup"
-
-# client = TelegramClient("poster_session", api_id, api_hash)
-
-# processed_messages = set()
-
-# @client.on(events.NewMessage(chats=source_channel))
-# async def forward_message(event):
-#     try:
-#         message_id = event.message.id
-#         if message_id not in processed_messages:
-#             processed_messages.add(message_id)
-#             await client.send_message(destination_channel, event.message)
-#     except Exception as e:
-#         print(f"Error forwarding message: {e}")
-
-# client.start()
-# print("Bot is running...")
-# client.run_until_disconnected()
-
-
-
 from telethon import TelegramClient, events
-from datetime import datetime, timedelta
+import asyncio
+import random
 
 api_id = 14458814
 api_hash = "b1e1a2ffd6000df2ea7b40517523bbbb"
@@ -35,32 +8,58 @@ api_hash = "b1e1a2ffd6000df2ea7b40517523bbbb"
 source_channel = "xmcryptonews"
 destination_channel = "@BitclubChatGroup"
 
-client = TelegramClient("poster_session", api_id, api_hash)
+# Telegram session names for different accounts
+session_names = ["poster_session1", "poster_session2", "poster_session3"]
+clients = []
+message_counter = 0
+current_index = 0
+delay_seconds = (15, 30)  # Delay range between messages
 
-# In-memory store of forwarded message IDs and their destination message ID
+# Track forwarded messages
 forwarded_messages = {}
 
-@client.on(events.NewMessage(chats=source_channel))
-async def forward_message(event):
-    try:
-        message_id = event.message.id
-        message_text = event.message.message or ""
+# Create and start all clients
+for session in session_names:
+    client = TelegramClient(session, api_id, api_hash)
+    clients.append(client)
 
-        # If the message was already forwarded
-        if message_id in forwarded_messages:
-            # Delete the previous one
-            old_message = forwarded_messages[message_id]
-            await client.delete_messages(destination_channel, old_message)
-            print(f"Deleted duplicate message: {message_id}")
+async def main():
+    global message_counter, current_index
 
-        # Forward the new message
-        sent = await client.send_message(destination_channel, event.message)
-        forwarded_messages[message_id] = sent.id
-        print(f"Forwarded message: {message_id}")
+    for client in clients:
+        await client.start()
 
-    except Exception as e:
-        print(f"Error forwarding/deleting message: {e}")
+    @clients[0].on(events.NewMessage(chats=source_channel))
+    async def handler(event):
+        global message_counter, current_index
 
-client.start()
-print("Bot is running...")
-client.run_until_disconnected()
+        try:
+            message_id = event.message.id
+
+            if message_id in forwarded_messages:
+                return
+
+            current_client = clients[current_index]
+
+            sent = await current_client.send_message(destination_channel, event.message)
+            forwarded_messages[message_id] = sent.id
+            print(f"[Client {current_index + 1}] Forwarded message ID: {message_id}")
+
+            message_counter += 1
+
+            delay = random.randint(*delay_seconds)
+            print(f"Waiting {delay} seconds...")
+            await asyncio.sleep(delay)
+
+            if message_counter >= 5:
+                message_counter = 0
+                current_index = (current_index + 1) % len(clients)
+                print(f"Switched to account {current_index + 1}")
+
+        except Exception as e:
+            print(f"Error: {e}")
+
+    print("Bot is running...")
+    await clients[0].run_until_disconnected()
+
+asyncio.run(main())
