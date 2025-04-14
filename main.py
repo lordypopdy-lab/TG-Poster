@@ -1,6 +1,7 @@
 from telethon import TelegramClient, events
 import asyncio
 import random
+import os
 
 api_id = 14458814
 api_hash = "b1e1a2ffd6000df2ea7b40517523bbbb"
@@ -8,26 +9,32 @@ api_hash = "b1e1a2ffd6000df2ea7b40517523bbbb"
 source_channel = "xmcryptonews"
 destination_channel = "@BitclubChatGroup"
 
-# Telegram session names for different accounts
+# Session names (these will create .session files in your folder)
 session_names = ["poster_session1", "poster_session2", "poster_session3"]
 clients = []
 message_counter = 0
 current_index = 0
-delay_seconds = (15, 30)  # Delay range between messages
+delay_seconds = (15, 30)  # Delay range between posts
 
-# Track forwarded messages
+# To prevent duplicate forwarding
 forwarded_messages = {}
 
-# Create and start all clients
+# Create clients and point to persistent .session files
 for session in session_names:
-    client = TelegramClient(session, api_id, api_hash)
+    session_file = os.path.join(os.getcwd(), session)  # full path to session file
+    client = TelegramClient(session_file, api_id, api_hash)
     clients.append(client)
 
 async def main():
     global message_counter, current_index
 
     for client in clients:
-        await client.start()
+        await client.connect()
+        if not await client.is_user_authorized():
+            print(f"Login required for session: {client.session.filename}")
+            await client.start()  # Will prompt for login only if needed
+        else:
+            print(f"Already logged in: {client.session.filename}")
 
     @clients[0].on(events.NewMessage(chats=source_channel))
     async def handler(event):
