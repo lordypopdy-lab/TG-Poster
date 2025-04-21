@@ -1,79 +1,67 @@
 from telethon import TelegramClient, events
+from datetime import datetime, timedelta
 import asyncio
-import random
-import os
+import time
 
-api_id = 14458814
-api_hash = "b1e1a2ffd6000df2ea7b40517523bbbb"
+# Account 1 credentials
+api_id_1 = '22737247'
+api_hash_1 = '5f4a3178c89e34aefc9027c3f04a98be'
+session_name_1 = 'session1'
 
-source_channel_username = "@xmcryptonews"
-destination_channel = "@BitclubChatGroup"
+# Account 2 credentials
+api_id_2 = '24772601'
+api_hash_2 = '3132429a348ebdfb0cb6cea6f8100850'
+session_name_2 = 'session2'
 
-session_names = ["poster_session1", "poster_session2", "poster_session3"]
-clients = []
-message_counter = 0
-current_index = 0
-delay_seconds = (10, 12)
-forwarded_messages = {}
+# Channel usernames or IDs
+source_channel = '@Xmcryptonews'
+destination_channel = '@BitclubCryptoNews'
 
-async def main():
-    global message_counter, current_index
+# Time to switch accounts
+switch_interval = timedelta(hours=24)
 
-    for session in session_names:
-        try:
-            session_path = os.path.join(os.getcwd(), session)
-            client = TelegramClient(session_path, api_id, api_hash)
+# Initialize clients
+client1 = TelegramClient(session_name_1, api_id_1, api_hash_1)
+client2 = TelegramClient(session_name_2, api_id_2, api_hash_2)
 
-            await client.connect()
+# Store the last time we switched
+last_switch_time = datetime.now()
+active_client = client1
 
-            if not await client.is_user_authorized():
-                print(f"❌ Session not authorized: {session}")
-                continue
+async def main_loop():
+    global active_client, last_switch_time
 
-            clients.append(client)
-            print(f"✅ Loaded session: {session}")
+    await client1.start()
+    await client2.start()
 
-        except Exception as e:
-            print(f"⚠️ Error with session {session}: {e}")
+    print("Both clients started. Starting to monitor and forward messages.")
 
-    if not clients:
-        print("❌ No valid clients available.")
-        return
-
-    # Get channel entity (once)
-    source_entity = await clients[0].get_entity(source_channel_username)
-
-    @clients[0].on(events.NewMessage(chats=source_entity))
+    @active_client.on(events.NewMessage(chats=source_channel))
     async def handler(event):
-        global message_counter, current_index
+        await active_client.send_message(destination_channel, event.message)
+        print(f"Forwarded message at {datetime.now()}")
 
-        try:
-            message_id = event.message.id
+    while True:
+        now = datetime.now()
+        if now - last_switch_time > switch_interval:
+            print("Switching account...")
+            if active_client == client1:
+                client1.remove_event_handler(handler)
+                active_client = client2
+            else:
+                client2.remove_event_handler(handler)
+                active_client = client1
 
-            if message_id in forwarded_messages:
-                return
+            # Re-assign event handler to new active client
+            @active_client.on(events.NewMessage(chats=source_channel))
+            async def handler(event):
+                await active_client.send_message(destination_channel, event.message)
+                print(f"Forwarded message at {datetime.now()}")
 
-            current_client = clients[current_index]
+            last_switch_time = now
 
-            sent = await current_client.send_message(destination_channel, event.message)
-            forwarded_messages[message_id] = sent.id
-            print(f"[Client {current_index + 1}] ➤ Forwarded message ID: {message_id}")
+        await asyncio.sleep(10)
 
-            message_counter += 1
-
-            delay = random.randint(*delay_seconds)
-            print(f"⏳ Waiting {delay} seconds...")
-            await asyncio.sleep(delay)
-
-            if message_counter >= 5:
-                message_counter = 0
-                current_index = (current_index + 1) % len(clients)
-                print(f"🔁 Switched to account {current_index + 1}")
-
-        except Exception as e:
-            print(f"⚠️ Handler error: {e}")
-
-    print("🚀 Bot running on server...")
-    await clients[0].run_until_disconnected()
-
-asyncio.run(main())
+# Run the script
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main_loop())
