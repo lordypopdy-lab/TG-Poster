@@ -1,67 +1,74 @@
-from telethon import TelegramClient, events
-from datetime import datetime, timedelta
 import asyncio
-import time
+from datetime import datetime, timedelta
+from telethon import TelegramClient, events
 
-# Account 1 credentials
-api_id_1 = '22737247'
-api_hash_1 = '5f4a3178c89e34aefc9027c3f04a98be'
-session_name_1 = 'session1'
+# === Configure your two accounts ===
+accounts = [
+    {
+        "session": "account_avnbvnb",
+        "api_id": 26439312,  # replace with your API ID
+        "api_hash": "66dad0ce553094675ec64d87de13ddd8"
+    },
+    {
+        "session": "account_bg0987vb",
+        "api_id": 29946177,  # replace with your API ID
+        "api_hash": "0000ed64d3e0dd9fa2036ea48b05b4db"
+    }
+]
 
-# Account 2 credentials
-api_id_2 = '24772601'
-api_hash_2 = '3132429a348ebdfb0cb6cea6f8100850'
-session_name_2 = 'session2'
+# === Channel info ===
+SOURCE_CHANNEL = '@Xmcryptonews'
+DEST_CHANNEL = '@BitclubCryptoNews'
 
-# Channel usernames or IDs
-source_channel = '@Xmcryptonews'
-destination_channel = '@BitclubCryptoNews'
+# === Rotation settings ===
+ROTATION_INTERVAL_HOURS = 24
 
-# Time to switch accounts
-switch_interval = timedelta(hours=24)
+# === Global vars ===
+current_account_index = 0
+client = None
+start_time = datetime.now()
 
-# Initialize clients
-client1 = TelegramClient(session_name_1, api_id_1, api_hash_1)
-client2 = TelegramClient(session_name_2, api_id_2, api_hash_2)
 
-# Store the last time we switched
-last_switch_time = datetime.now()
-active_client = client1
+async def forward_handler(event):
+    try:
+        await client.send_message(DEST_CHANNEL, event.message)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Message forwarded.")
+    except Exception as e:
+        print(f"Error forwarding message: {e}")
 
-async def main_loop():
-    global active_client, last_switch_time
 
-    await client1.start()
-    await client2.start()
-
-    print("Both clients started. Starting to monitor and forward messages.")
-
-    @active_client.on(events.NewMessage(chats=source_channel))
-    async def handler(event):
-        await active_client.send_message(destination_channel, event.message)
-        print(f"Forwarded message at {datetime.now()}")
-
+async def check_rotation():
+    global current_account_index, client, start_time
     while True:
-        now = datetime.now()
-        if now - last_switch_time > switch_interval:
-            print("Switching account...")
-            if active_client == client1:
-                client1.remove_event_handler(handler)
-                active_client = client2
-            else:
-                client2.remove_event_handler(handler)
-                active_client = client1
+        if datetime.now() - start_time >= timedelta(hours=ROTATION_INTERVAL_HOURS):
+            print("🔄 Rotating account...")
 
-            # Re-assign event handler to new active client
-            @active_client.on(events.NewMessage(chats=source_channel))
-            async def handler(event):
-                await active_client.send_message(destination_channel, event.message)
-                print(f"Forwarded message at {datetime.now()}")
+            await client.disconnect()
 
-            last_switch_time = now
+            current_account_index = (current_account_index + 1) % len(accounts)
+            start_time = datetime.now()
 
-        await asyncio.sleep(10)
+            client = await start_client()
+        await asyncio.sleep(5)  # low impact polling
 
-# Run the script
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main_loop())
+
+async def start_client():
+    acc = accounts[current_account_index]
+    print(f"🚀 Starting client: {acc['session']}")
+    new_client = TelegramClient(acc["session"], acc["api_id"], acc["api_hash"])
+    await new_client.start()
+    new_client.add_event_handler(forward_handler, events.NewMessage(chats=SOURCE_CHANNEL))
+    return new_client
+
+
+async def main():
+    global client
+    client = await start_client()
+    await asyncio.gather(
+        client.run_until_disconnected(),
+        check_rotation()
+    )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
