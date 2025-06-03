@@ -2,8 +2,8 @@ from telethon import TelegramClient, events
 import asyncio
 
 # Replace with your values
-api_id = 123456            # your api_id from https://my.telegram.org
-api_hash = 'your_api_hash' # your api_hash from https://my.telegram.org
+api_id = 22037936           # your api_id from https://my.telegram.org
+api_hash = '68d953559a91f655ff88794625b5cb75' # your api_hash from https://my.telegram.org
 
 # Replace with actual usernames or IDs
 source_channel = '@xmcryptonews'   # e.g. 'cryptoalerts' or -1001234567890
