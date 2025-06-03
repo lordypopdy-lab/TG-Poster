@@ -1,86 +1,29 @@
-import asyncio
-from datetime import datetime, timedelta
 from telethon import TelegramClient, events
+import asyncio
 
-# === Account credentials ===
-accounts = [
-    {
-        "session": "account_avnbvnb",
-        "api_id": 26439312,
-        "api_hash": "66dad0ce553094675ec64d87de13ddd8"
-    },
-    {
-        "session": "account_bg0987vb",
-        "api_id": 29946177,
-        "api_hash": "0000ed64d3e0dd9fa2036ea48b05b4db"
-    }
-]
+# Replace with your values
+api_id = 123456            # your api_id from https://my.telegram.org
+api_hash = 'your_api_hash' # your api_hash from https://my.telegram.org
 
-# === Channels ===
-SOURCE_CHANNEL = '@Xmcryptonews'
-DEST_CHANNEL = '@BitclubCryptoNews'
+# Replace with actual usernames or IDs
+source_channel = '@xmcryptonews'   # e.g. 'cryptoalerts' or -1001234567890
+target_channel = '@BitclubCryptoNews'   # e.g. 'mypublicchannel' or -1009876543210
 
-# === Rotation setup ===
-ROTATION_INTERVAL = timedelta(hours=24)
+client = TelegramClient('poster001', api_id, api_hash)
 
-# Globals
-clients = [None, None]
-handlers = [None, None]
-current_index = 0
-last_rotation = datetime.now()
-
-
-def make_handler(index):
-    async def handler(event):
-        try:
-            await clients[index].send_message(DEST_CHANNEL, event.message)
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] {accounts[index]['session']} forwarded message.")
-        except Exception as e:
-            print(f"Error from {accounts[index]['session']}: {e}")
-    return handler
-
-
-async def setup_clients():
-    for i in range(2):
-        acc = accounts[i]
-        print(f"🔐 Logging in: {acc['session']}")
-        clients[i] = TelegramClient(acc['session'], acc['api_id'], acc['api_hash'])
-        await clients[i].start()
-
-
-async def start_forwarding(index):
-    handlers[index] = make_handler(index)
-    clients[index].add_event_handler(handlers[index], events.NewMessage(chats=SOURCE_CHANNEL))
-    print(f"✅ Forwarding enabled on {accounts[index]['session']}")
-
-
-async def stop_forwarding(index):
-    if handlers[index]:
-        clients[index].remove_event_handler(handlers[index])
-        print(f"⛔ Forwarding stopped on {accounts[index]['session']}")
-
-
-async def rotate():
-    global current_index, last_rotation
-    while True:
-        if datetime.now() - last_rotation >= ROTATION_INTERVAL:
-            await stop_forwarding(current_index)
-            current_index = (current_index + 1) % 2
-            await start_forwarding(current_index)
-            last_rotation = datetime.now()
-        await asyncio.sleep(5)
-
+@client.on(events.NewMessage(chats=source_channel))
+async def forward_handler(event):
+    try:
+        await client.forward_messages(target_channel, event.message)
+        print(f"Forwarded message ID {event.message.id}")
+    except Exception as e:
+        print(f"Error forwarding message: {e}")
 
 async def main():
-    await setup_clients()
-    await start_forwarding(current_index)
-
-    await asyncio.gather(
-        clients[0].run_until_disconnected(),
-        clients[1].run_until_disconnected(),
-        rotate()
-    )
-
+    await client.start()
+    print("Client started. Listening for new messages...")
+    await client.run_until_disconnected()
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
