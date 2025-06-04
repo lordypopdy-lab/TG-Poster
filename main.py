@@ -3,6 +3,8 @@ import threading
 import asyncio
 from telethon import TelegramClient, events
 
+#----------BITCLUB'S POSTER ADMIN-----------#
+
 # === Telegram credentials ===
 api_id = 22037936
 api_hash = '68d953559a91f655ff88794625b5cb75'
