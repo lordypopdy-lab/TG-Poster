@@ -1,15 +1,28 @@
-from telethon import TelegramClient, events
+from flask import Flask
+import threading
 import asyncio
+from telethon import TelegramClient, events
 
-# Replace with your values
-api_id = 22037936           # your api_id from https://my.telegram.org
-api_hash = '68d953559a91f655ff88794625b5cb75' # your api_hash from https://my.telegram.org
+# === Telegram credentials ===
+api_id = 22037936
+api_hash = '68d953559a91f655ff88794625b5cb75'
 
-# Replace with actual usernames or IDs
-source_channel = '@xmcryptonews'   # e.g. 'cryptoalerts' or -1001234567890
-target_channel = '@BitclubCryptoNews'   # e.g. 'mypublicchannel' or -1009876543210
+# === Channels ===
+source_channel = '@xmcryptonews'
+target_channel = '@BitclubCryptoNews'
 
+# === Telethon client ===
 client = TelegramClient('poster001', api_id, api_hash)
+
+# === Flask web server to keep Replit alive ===
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Telegram forwarder is running!", 200
+
+def run_web():
+    app.run(host='0.0.0.0', port=8080)
 
 @client.on(events.NewMessage(chats=source_channel))
 async def forward_handler(event):
@@ -19,11 +32,13 @@ async def forward_handler(event):
     except Exception as e:
         print(f"Error forwarding message: {e}")
 
-async def main():
-    await client.start()
-    print("Client started. Listening for new messages...")
-    await client.run_until_disconnected()
+def start():
+    try:
+        client.start()
+        client.run_until_disconnected()
+    except Exception as e:
+        print("Client failed to start:", e)
 
 if __name__ == "__main__":
-    asyncio.run(main())
-    
+    threading.Thread(target=run_web).start()
+    start()
