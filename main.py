@@ -19,7 +19,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Telegram forwarder is running!", 200
+    return "Telegram forwarder is running! Now...", 200
 
 def run_web():
     app.run(host='0.0.0.0', port=8080)
